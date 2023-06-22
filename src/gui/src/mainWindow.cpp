@@ -429,14 +429,8 @@ MainWindow::~MainWindow()
 
 void MainWindow::setDatabase(odb::dbDatabase* db)
 {
-  // set database and pass along
   db_ = db;
   controls_->setDb(db_);
-
-  auto* chip = db->getChip();
-  if (chip != nullptr) {
-    viewer_->designLoaded(chip->getBlock());
-  }
 }
 
 void MainWindow::setBlock(odb::dbBlock* block)
@@ -494,12 +488,16 @@ void MainWindow::init(sta::dbSta* sta)
   gui->registerDescriptor<odb::dbTechLayerRule*>(
       new DbTechLayerRuleDescriptor());
   gui->registerDescriptor<odb::dbTechSameNetRule*>(
-      new DbTechSameNetRuleDescriptor());
+      new DbTechSameNetRuleDescriptor(db_));
   gui->registerDescriptor<odb::dbSite*>(new DbSiteDescriptor(db_));
   gui->registerDescriptor<DbSiteDescriptor::SpecificSite>(
       new DbSiteDescriptor(db_));
   gui->registerDescriptor<odb::dbRow*>(new DbRowDescriptor(db_));
   gui->registerDescriptor<Ruler*>(new RulerDescriptor(rulers_, db_));
+  gui->registerDescriptor<odb::dbBlock*>(new DbBlockDescriptor(db_));
+  gui->registerDescriptor<odb::dbTech*>(new DbTechDescriptor(db_));
+  gui->registerDescriptor<odb::dbMetalWidthViaMap*>(
+      new DbMetalWidthViaMapDescriptor(db_));
 
   gui->registerDescriptor<BufferTree>(
       new BufferTreeDescriptor(db_,
