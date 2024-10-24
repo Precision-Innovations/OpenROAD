@@ -4,8 +4,32 @@ on:
   push:
 
 jobs:
+
+  get_version:
+    name: 'Set Release Version'
+    runs-on: ubuntu-latest
+    container:
+      image: openroad/ubuntu22.04-dev
+    outputs:
+      date: ${{ steps.set_version.outputs.date }}
+      version: ${{ steps.set_version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set release version
+        id: set_version
+        run: |
+          git config --global --add safe.directory '*'
+          echo "version=$(git describe | sed 's/v//')" >> $GITHUB_OUTPUT
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
   builder:
     name: 'Build .deb package'
+    needs: get_version
     strategy:
       fail-fast: false
       matrix:
@@ -17,71 +41,77 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          fetch-tags: true
           submodules: true
 
-      - name: Set release version
-        id: set_version
+      - name: Set safe directory
         run: |
           git config --global --add safe.directory '*'
-          echo "RELEASE_VERSION=$(git describe | sed 's/v//')" >> $GITHUB_ENV
-          echo "RELEASE_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Build package
         run: |
-          ./debian/create-changelog.sh ${{ env.RELEASE_VERSION }}
+          ./debian/create-changelog.sh ${{ needs.get_version.outputs.version }}
           debuild --preserve-env --preserve-envvar=PATH -B
-          mkdir -p artifacts
-          mv ../openroad_* artifacts
-
-      - name: Rename artifact
-        id: artifact
-        run: |
-          cd artifacts
-          file=$(realpath openroad_*.deb)
-          artifact=$(echo $file | sed 's/\.\([^.]*\)$/-${{ matrix.os }}.\1/')
-          mv $file $artifact
-          echo "file=$(realpath $artifact)" >> $GITHUB_OUTPUT
-          name=$(basename $artifact)
-          name=${name%.deb}
-          echo "name=$name" >> $GITHUB_OUTPUT
+          # move files because upload-artifacts do not allow relative paths
+          mv ../openroad*.deb .
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.artifact.outputs.name }}
-          path: ${{ steps.artifact.outputs.file }}
+          name: openroad_${{ needs.get_version.outputs.version }}_${{ matrix.os }}_amd64.deb
+          path: openroad_${{ needs.get_version.outputs.version }}_amd64.deb
 
-      - name: Get release info
-        uses: cardinalby/git-get-release-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ env.RELEASE_VERSION }}
-          release_name: ${{ env.RELEASE_VERSION }}
-          doNotFailIfNotFound: true
-        id: release_info
+  create_release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [get_version, builder]
+    container:
+      image: openroad/ubuntu22.04-dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set safe directory
+        run: |
+          git config --global --add safe.directory '*'
 
       - name: Create release if not exists
-        if: steps.release_info.outputs.name == ''
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.RELEASE_VERSION }}
-          release_name: ${{ env.RELEASE_VERSION }}
-          body: "Release ${{ env.RELEASE_VERSION }} on ${{ env.RELEASE_DATE }}"
-        id: create_release
+          tag_name: ${{ needs.get_version.outputs.version }}
+          release_name: ${{ needs.get_version.outputs.version }}
+          body: |
+            "Release ${{ needs.get_version.outputs.version }} on ${{ needs.get_version.outputs.date }}"
 
-      - name: Upload Release Asset
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
         with:
-          upload_url: ${{ steps.release_info.outputs.upload_url || steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.artifact.outputs.file }}
-          asset_name: ${{ steps.artifact.outputs.name }}-${{ env.RELEASE_VERSION }}.deb
+          path: artifacts
+
+      - name: Upload debian11 Release Asset
+        id: upload-release-asset-debian11
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/openroad_${{ needs.get_version.outputs.version }}_debian11_amd64.deb
+          asset_name: openroad_${{ needs.get_version.outputs.version }}_debian11_amd64.deb
           asset_content_type: application/octet-stream
 
+      - name: Upload ubuntu20.04 Release Asset
+        id: upload-release-asset-ubuntu20
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/openroad_${{ needs.get_version.outputs.version }}_ubuntu20.04_amd64.deb
+          asset_name: openroad_${{ needs.get_version.outputs.version }}_ubuntu20.04_amd64.deb
+          asset_content_type: application/octet-stream
+
+      - name: Upload ubuntu22.04 Release Asset
+        id: upload-release-asset-ubuntu22
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/openroad_${{ needs.get_version.outputs.version }}_ubuntu22.04_amd64.deb
+          asset_name: openroad_${{ needs.get_version.outputs.version }}_ubuntu22.04_amd64.deb
+          asset_content_type: application/octet-stream
