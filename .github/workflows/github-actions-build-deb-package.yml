@@ -49,6 +49,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set safe directory
+        run: |
+          git config --global --add safe.directory '*'
+
       - name: Create release if not exists
         id: create_release
         uses: actions/create-release@v1
