@@ -41,7 +41,7 @@ jobs:
           name: openroad_${{ env.RELEASE_VERSION }}_${{ matrix.os }}_amd64.deb
           path: openroad_${{ env.RELEASE_VERSION }}_amd64.deb
 
-  create-release:
+  create_release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: builder
@@ -71,7 +71,7 @@ jobs:
           path: artifacts
 
       - name: Upload debian11 Release Asset
-        id: upload-release-asset
+        id: upload-release-asset-debian11
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -80,7 +80,7 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload ubuntu20.04 Release Asset
-        id: upload-release-asset
+        id: upload-release-asset-ubuntu20
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -89,7 +89,7 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload ubuntu22.04 Release Asset
-        id: upload-release-asset
+        id: upload-release-asset-ubuntu22
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
