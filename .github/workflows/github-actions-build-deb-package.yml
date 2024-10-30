@@ -67,12 +67,6 @@ jobs:
     container:
       image: openroad/ubuntu22.04-dev
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set safe directory
-        run: |
-          git config --global --add safe.directory '*'
-
       - name: Create release if not exists
         id: create_release
         uses: actions/create-release@v1
@@ -85,9 +79,11 @@ jobs:
             "Release ${{ needs.get_version.outputs.version }} on ${{ needs.get_version.outputs.date }}"
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
+
+      - run: ls -R
 
       - name: Upload debian11 Release Asset
         id: upload-release-asset-debian11
