@@ -47,10 +47,15 @@ jobs:
 
       - name: Build package
         run: |
+          echo "::group::Set changelog"
           ./debian/create-changelog.sh ${{ needs.get_version.outputs.version }}
+          echo "::endgroup::"
+          echo "::group::Run debuild"
           debuild --preserve-env --preserve-envvar=PATH -B
-          # move files because upload-artifacts do not allow relative paths
-          mv ../openroad*${{ needs.get_version.outputs.version }}* .
+          echo "::endgroup::"
+          echo "::group::Move files" # upload-artifacts does not allow relative paths
+          mv -v ../openroad*${{ needs.get_version.outputs.version }}* .
+          echo "::endgroup::"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
